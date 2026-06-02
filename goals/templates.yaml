@@ -1,0 +1,142 @@
+research:
+  competitor_analysis:
+    description: Deep competitor research report saved to markdown
+    vars: [competitors, output_file]
+    template: |
+      Research {competitors} thoroughly. Cover: pricing, feature set,
+      content strategy, top performing posts last 30 days, estimated team size,
+      recent funding or news. Format as structured markdown and save to {output_file}.
+
+  market_intelligence:
+    description: Weekly market intelligence brief (under 500 words)
+    vars: [topics]
+    template: |
+      Monitor {topics} this week. Summarize top developments, emerging trends,
+      and key players making moves. Format as an executive brief, max 500 words.
+
+  deep_dive:
+    description: Long-form research on a single topic
+    vars: [topic, angle, output_file]
+    template: |
+      Do a thorough long-form research report on {topic} from the angle of {angle}.
+      Include: background, current state, key players, data points, expert opinions,
+      open questions. Save full report to {output_file}.
+
+content:
+  x_thread:
+    description: Research and draft a Twitter/X thread
+    vars: [topic]
+    template: |
+      Research the latest high-performing discussions on {topic} on X.
+      Analyze top threads in this niche for hooks and structure.
+      Draft a 10-tweet thread: strong hook, value-packed body, clear CTA.
+      Score the virality potential 1-10 with reasoning. Save draft for review.
+
+  content_calendar:
+    description: 30-day content calendar across platforms
+    vars: [brand, niche, platforms]
+    template: |
+      Create a 30-day content calendar for {brand} in the {niche} space.
+      Cover {platforms}. At least 3 posts per week.
+      For each entry include: platform, post hook, content format, and CTA.
+      Output as a markdown table.
+
+  repurpose:
+    description: Repurpose a piece of content into 5 formats
+    vars: [source_url_or_path, formats]
+    template: |
+      Take the content at {source_url_or_path} and repurpose it into
+      {formats}. Preserve the core argument and key data points in each format.
+      Save each version as a separate file.
+
+dev:
+  code_review:
+    description: Autonomous codebase security and quality review
+    vars: [path, output_file]
+    template: |
+      Review the codebase at {path}. Check for: security vulnerabilities (OWASP top 10),
+      performance bottlenecks, code duplication, missing error handling, and outdated deps.
+      Generate a prioritised report with fix suggestions. Save to {output_file}.
+
+  prototype:
+    description: Build a working prototype from a description
+    vars: [description, stack, requirements, output_dir]
+    template: |
+      Build {description} using {stack}. Requirements: {requirements}.
+      Produce working, runnable code with a clear entry point.
+      Save all files to {output_dir} with a short usage note inline.
+
+  refactor:
+    description: Refactor a module or file for clarity and performance
+    vars: [path, goals]
+    template: |
+      Refactor {path}. Goals: {goals}.
+      Do not change external behaviour. Add no new features.
+      After refactoring, run existing tests if present and report results.
+
+linkedin:
+  thought_leadership:
+    description: Research a topic and write a LinkedIn thought-leadership post
+    vars: [topic, tone, your_angle]
+    template: |
+      Research the latest developments on {topic}.
+      Write a LinkedIn thought-leadership post from the angle: {your_angle}.
+      Tone: {tone} (e.g. professional, conversational, bold).
+      Format: strong hook (first line), 3-5 insight paragraphs, clear CTA.
+      Max 1300 characters. No hashtag spam — max 3 relevant tags at the end.
+      Save the draft to linkedin_draft.md for review.
+
+  image_post:
+    description: Generate a LinkedIn image + write caption, then post
+    vars: [topic, brand_name, image_style, post_text]
+    template: |
+      Create a LinkedIn post for {brand_name} about {topic}.
+      Step 1 — Generate image: run `hermas image generate "{topic} {image_style} professional LinkedIn graphic" --size post`
+      Step 2 — Review the generated image file.
+      Step 3 — Post with caption using: `hermas linkedin post "{post_text}" --image <generated-file>`
+      Report the LinkedIn post URN when done.
+
+  content_series:
+    description: Plan a 5-post LinkedIn content series on a topic
+    vars: [topic, audience, goal]
+    template: |
+      Plan a 5-post LinkedIn content series on {topic} for {audience}.
+      Goal of the series: {goal}.
+      For each post provide: hook, key insight, format (text/image/carousel),
+      best day to post, and the image prompt if visual.
+      Save the full series plan to linkedin_series.md.
+
+  repurpose_to_linkedin:
+    description: Repurpose any content into a LinkedIn post
+    vars: [source, format]
+    template: |
+      Take the content from {source} and repurpose it into a LinkedIn {format}.
+      Preserve the core argument. Rewrite for a professional LinkedIn audience.
+      Add a strong hook, structure with line breaks, and end with a question CTA.
+      Save the result to linkedin_repurposed.md.
+
+ops:
+  morning_brief:
+    description: Daily morning briefing — news, priorities, one insight
+    vars: [topics]
+    template: |
+      Compile a morning briefing: top news in {topics}, any flagged emails
+      or messages that need attention today, top 3 priorities aligned with
+      my goals, and one actionable insight to start the day.
+      Keep it under 300 words.
+
+  weekly_review:
+    description: End-of-week review against goals
+    vars: [goals_summary]
+    template: |
+      Review this past week against my goals: {goals_summary}.
+      What did I accomplish? What stalled and why? What should shift next week?
+      Format as a structured retrospective: Wins / Blockers / Adjustments.
+
+  email_triage:
+    description: Summarise and prioritise inbox
+    vars: [mailbox, max_items]
+    template: |
+      Review the {mailbox} inbox. Summarise the top {max_items} threads that need
+      attention. For each: sender, subject, urgency (high/med/low), and recommended
+      action (reply / delegate / archive / wait). Output as a prioritised list.

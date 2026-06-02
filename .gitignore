@@ -1,0 +1,25 @@
+# Generated images
+*.jpg
+*.jpeg
+*.png
+*.webp
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Secrets — never commit these
+.env
+*.env
+
+# Logs and post history
+bitsol_posts.json
+
+# OS
+.DS_Store
+Thumbs.db

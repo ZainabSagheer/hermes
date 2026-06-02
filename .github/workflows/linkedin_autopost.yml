@@ -1,0 +1,81 @@
+name: Bitsol Marketing — LinkedIn Auto Post
+
+on:
+  schedule:
+    # All times UTC (Pakistan = UTC+5)
+    - cron: '0 3 * * *'    # 08:00 PKT — Marketing Tip
+    - cron: '30 5 * * *'   # 10:30 PKT — Industry Insight
+    - cron: '30 7 * * *'   # 12:30 PKT — Success Story
+    - cron: '0 10 * * *'   # 15:00 PKT — Strategy Framework
+    - cron: '30 12 * * *'  # 17:30 PKT — Hot Take / Debate
+
+  # Allow manual trigger from GitHub UI with optional overrides
+  workflow_dispatch:
+    inputs:
+      pillar:
+        description: 'Pillar (tip / insight / case_study / strategy / engagement)'
+        required: false
+        default: ''
+      topic:
+        description: 'Optional topic or angle'
+        required: false
+        default: ''
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install httpx
+
+      - name: Determine content pillar from schedule time
+        id: pillar
+        run: |
+          # Manual trigger can override the pillar
+          if [ -n "${{ github.event.inputs.pillar }}" ]; then
+            echo "pillar=${{ github.event.inputs.pillar }}" >> $GITHUB_OUTPUT
+            echo "Using manual pillar: ${{ github.event.inputs.pillar }}"
+          else
+            HOUR=$(date -u +%H)
+            case "$HOUR" in
+              03) PILLAR="tip"       ;;
+              05) PILLAR="insight"   ;;
+              07) PILLAR="case_study";;
+              10) PILLAR="strategy"  ;;
+              12) PILLAR="engagement";;
+              *)  PILLAR="tip"       ;;  # fallback
+            esac
+            echo "pillar=$PILLAR" >> $GITHUB_OUTPUT
+            echo "Scheduled pillar: $PILLAR (UTC hour: $HOUR)"
+          fi
+
+      - name: Generate and post to LinkedIn
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+          PYTHONIOENCODING: utf-8
+        run: |
+          TOPIC="${{ github.event.inputs.topic }}"
+          if [ -n "$TOPIC" ]; then
+            python post_now.py --pillar ${{ steps.pillar.outputs.pillar }} --topic "$TOPIC"
+          else
+            python post_now.py --pillar ${{ steps.pillar.outputs.pillar }}
+          fi
+
+      - name: Upload generated image as artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linkedin-image-${{ github.run_id }}
+          path: '*.jpg'
+          retention-days: 7
