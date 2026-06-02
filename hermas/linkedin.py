@@ -44,10 +44,19 @@ def get_access_token(client_id: str, client_secret: str) -> str:
                 self._respond("<h2>Unexpected request.</h2>")
 
         def _respond(self, body: str):
+            html = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>body{{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f0f4f8}}
+.box{{background:white;padding:40px;border-radius:12px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.1)}}
+h2{{color:#0a66c2}}p{{color:#555}}</style></head>
+<body><div class="box"><h2>✅ Authorised!</h2><p>{body}</p>
+<p style="margin-top:20px;font-size:13px;color:#999">You can close this tab.</p></div></body></html>"""
             self.send_response(200)
-            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Connection", "close")
             self.end_headers()
-            self.wfile.write(body.encode())
+            self.wfile.write(html.encode("utf-8"))
+            self.wfile.flush()
 
         def log_message(self, *_):
             pass  # silence access log
