@@ -140,6 +140,7 @@ class ContentEngine:
         return []
 
     def _save_log(self) -> None:
+        _LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
         _LOG_PATH.write_text(json.dumps(self._log, indent=2, default=str))
 
     def today_count(self) -> int:
