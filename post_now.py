@@ -14,7 +14,7 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="repla
 sys.path.insert(0, str(Path(__file__).parent))
 
 from hermas.content_engine import ContentEngine, PILLARS
-from hermas.image_gen import OpenAIImageClient
+from hermas.image_gen import OpenAIImageClient, PollinationsImageClient
 from hermas.linkedin import LinkedInClient
 
 
@@ -40,17 +40,23 @@ def main():
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
+    gemini_key = _load_env("GEMINI_API_KEY")
     openai_key = _load_env("OPENAI_API_KEY")
+    anthropic_key = _load_env("ANTHROPIC_API_KEY")
     linkedin_token = _load_env("LINKEDIN_ACCESS_TOKEN")
 
-    if not openai_key:
-        print("ERROR: OPENAI_API_KEY not set in ~/.hermes/.env")
+    if not gemini_key and not openai_key and not anthropic_key:
+        print("ERROR: Set GEMINI_API_KEY (free) or OPENAI_API_KEY / ANTHROPIC_API_KEY")
         sys.exit(1)
     if not linkedin_token and not args.dry_run:
         print("ERROR: LINKEDIN_ACCESS_TOKEN not set in ~/.hermes/.env")
         sys.exit(1)
 
-    engine = ContentEngine(openai_key)
+    engine = ContentEngine(
+        api_key=openai_key or "",
+        anthropic_key=anthropic_key,
+        gemini_key=gemini_key,
+    )
 
     # Select pillar
     if args.pillar:
@@ -66,8 +72,12 @@ def main():
     print(f"Copy ({len(text)} chars):\n{text}\n")
 
     print("Generating image…")
-    img = OpenAIImageClient(openai_key)
-    image_path = img.generate(
+    if openai_key:
+        img_client = OpenAIImageClient(openai_key)
+    else:
+        img_client = PollinationsImageClient()
+        print("  → using Pollinations.ai (free, no key needed)")
+    image_path = img_client.generate(
         f"Bitsol Marketing LinkedIn post: {selected['image_prompt']}",
         size_preset="post",
     )

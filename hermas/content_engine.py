@@ -124,15 +124,24 @@ The first sentence must be impossible to scroll past.
 )
 
 _OPENAI_CHAT = "https://api.openai.com/v1/chat/completions"
+_ANTHROPIC_MESSAGES = "https://api.anthropic.com/v1/messages"
+_GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 _LOG_PATH = Path.home() / ".hermes" / "bitsol_posts.json"
 
 
 class ContentEngine:
-    def __init__(self, api_key: str) -> None:
+    def __init__(
+        self,
+        api_key: str = "",
+        anthropic_key: str | None = None,
+        gemini_key: str | None = None,
+    ) -> None:
         self._http = httpx.Client(
             headers={"Authorization": f"Bearer {api_key}"},
             timeout=60,
         )
+        self._anthropic_key = anthropic_key
+        self._gemini_key = gemini_key
         self._log = self._load_log()
 
     def _load_log(self) -> list:
@@ -157,13 +166,15 @@ class ContentEngine:
                 return pillar
         return PILLARS[len(self._log) % len(PILLARS)]
 
-    def generate_text(self, pillar: dict, topic: str | None = None) -> str:
+    def _build_user_msg(self, pillar: dict, topic: str | None) -> str:
         today_str = datetime.now().strftime("%B %d, %Y")
-        user_msg = pillar["prompt"]
+        msg = pillar["prompt"]
         if topic:
-            user_msg += f"\n\nSpecific angle to focus on: {topic}"
-        user_msg += f"\n\nDate: {today_str}. Make the content feel current and timely."
+            msg += f"\n\nSpecific angle to focus on: {topic}"
+        msg += f"\n\nDate: {today_str}. Make the content feel current and timely."
+        return msg
 
+    def _generate_with_openai(self, user_msg: str) -> str:
         payload = {
             "model": "gpt-4o",
             "messages": [
@@ -173,18 +184,62 @@ class ContentEngine:
             "max_tokens": 600,
             "temperature": 0.88,
         }
-
-        for attempt in range(5):
+        for attempt in range(3):
             r = self._http.post(_OPENAI_CHAT, json=payload)
             if r.status_code == 429:
                 wait = int(r.headers.get("Retry-After", 2 ** attempt * 5))
-                print(f"Rate limited — waiting {wait}s (attempt {attempt + 1}/5)…")
+                print(f"OpenAI rate limited — waiting {wait}s (attempt {attempt + 1}/3)…")
                 time.sleep(wait)
                 continue
             r.raise_for_status()
             return r.json()["choices"][0]["message"]["content"].strip()
+        raise RuntimeError("OpenAI rate limit: exhausted 3 retries")
 
-        raise RuntimeError("OpenAI rate limit: exhausted 5 retries")
+    def _generate_with_claude(self, user_msg: str) -> str:
+        if not self._anthropic_key:
+            raise RuntimeError("ANTHROPIC_API_KEY not set — cannot fall back to Claude")
+        print("Falling back to Claude (Anthropic)…")
+        r = httpx.post(
+            _ANTHROPIC_MESSAGES,
+            headers={
+                "x-api-key": self._anthropic_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": "claude-sonnet-4-6",
+                "max_tokens": 600,
+                "system": SYSTEM_PROMPT,
+                "messages": [{"role": "user", "content": user_msg}],
+            },
+            timeout=60,
+        )
+        r.raise_for_status()
+        return r.json()["content"][0]["text"].strip()
+
+    def _generate_with_gemini(self, user_msg: str) -> str:
+        r = httpx.post(
+            _GEMINI_URL,
+            params={"key": self._gemini_key},
+            json={
+                "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+                "contents": [{"parts": [{"text": user_msg}]}],
+                "generationConfig": {"maxOutputTokens": 600, "temperature": 0.88},
+            },
+            timeout=60,
+        )
+        r.raise_for_status()
+        return r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+
+    def generate_text(self, pillar: dict, topic: str | None = None) -> str:
+        user_msg = self._build_user_msg(pillar, topic)
+        if self._gemini_key:
+            print("Using Gemini 2.0 Flash (free)…")
+            return self._generate_with_gemini(user_msg)
+        try:
+            return self._generate_with_openai(user_msg)
+        except RuntimeError:
+            return self._generate_with_claude(user_msg)
 
     def log_post(self, pillar_id: str, urn: str, text: str, image: str | None) -> None:
         self._log.append({
