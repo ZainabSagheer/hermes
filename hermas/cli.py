@@ -240,7 +240,8 @@ def _linkedin_client():
             "Run [bold]hermas linkedin auth[/bold] to get one."
         )
         raise typer.Exit(1)
-    return LinkedInClient(token)
+    org_id = os.environ.get("LINKEDIN_ORG_ID") or _load_env_key("LINKEDIN_ORG_ID")
+    return LinkedInClient(token, org_id=org_id)
 
 
 @linkedin_app.command("auth")
@@ -290,6 +291,7 @@ def linkedin_post(
     image: Optional[Path] = typer.Option(None, "--image", "-i", help="Image file to attach"),
     visibility: str = typer.Option("PUBLIC", help="PUBLIC or CONNECTIONS"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview without posting"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
 ):
     """Post to LinkedIn, optionally with an image."""
     if dry_run:
@@ -298,9 +300,10 @@ def linkedin_post(
             console.print(f"Image: {image}")
         return
 
-    confirmed = typer.confirm("Post to LinkedIn?", default=True)
-    if not confirmed:
-        raise typer.Exit()
+    if not yes:
+        confirmed = typer.confirm("Post to LinkedIn?", default=True)
+        if not confirmed:
+            raise typer.Exit()
 
     li = _linkedin_client()
     if image:

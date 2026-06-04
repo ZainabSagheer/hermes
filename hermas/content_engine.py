@@ -1,6 +1,7 @@
 """GPT-4o content engine for Bitsol Marketing LinkedIn posts."""
 
 import json
+import time
 from datetime import date, datetime
 from pathlib import Path
 
@@ -163,20 +164,27 @@ class ContentEngine:
             user_msg += f"\n\nSpecific angle to focus on: {topic}"
         user_msg += f"\n\nDate: {today_str}. Make the content feel current and timely."
 
-        r = self._http.post(
-            _OPENAI_CHAT,
-            json={
-                "model": "gpt-4o",
-                "messages": [
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": user_msg},
-                ],
-                "max_tokens": 600,
-                "temperature": 0.88,
-            },
-        )
-        r.raise_for_status()
-        return r.json()["choices"][0]["message"]["content"].strip()
+        payload = {
+            "model": "gpt-4o",
+            "messages": [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_msg},
+            ],
+            "max_tokens": 600,
+            "temperature": 0.88,
+        }
+
+        for attempt in range(5):
+            r = self._http.post(_OPENAI_CHAT, json=payload)
+            if r.status_code == 429:
+                wait = int(r.headers.get("Retry-After", 2 ** attempt * 5))
+                print(f"Rate limited — waiting {wait}s (attempt {attempt + 1}/5)…")
+                time.sleep(wait)
+                continue
+            r.raise_for_status()
+            return r.json()["choices"][0]["message"]["content"].strip()
+
+        raise RuntimeError("OpenAI rate limit: exhausted 5 retries")
 
     def log_post(self, pillar_id: str, urn: str, text: str, image: str | None) -> None:
         self._log.append({

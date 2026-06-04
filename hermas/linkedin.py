@@ -1,5 +1,6 @@
 """LinkedIn UGC API client — text posts, image posts, and OAuth helpers."""
 
+import time
 import threading
 import urllib.parse
 import webbrowser
@@ -12,7 +13,7 @@ _REDIRECT_PORT = 8765
 _REDIRECT_URI = f"http://localhost:{_REDIRECT_PORT}/callback"
 _AUTH_URL = "https://www.linkedin.com/oauth/v2/authorization"
 _TOKEN_URL = "https://www.linkedin.com/oauth/v2/accessToken"
-_SCOPES = "openid profile w_member_social"
+_SCOPES = "openid profile w_member_social w_organization_social"
 
 
 def get_access_token(client_id: str, client_secret: str) -> str:
@@ -48,9 +49,10 @@ def get_access_token(client_id: str, client_secret: str) -> str:
 <html><head><meta charset="utf-8">
 <style>body{{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f0f4f8}}
 .box{{background:white;padding:40px;border-radius:12px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.1)}}
-h2{{color:#0a66c2}}p{{color:#555}}</style></head>
+h2{{color:#0a66c2}}p{{color:#555}}</style>
+<script>setTimeout(()=>window.close(),3000);</script></head>
 <body><div class="box"><h2>✅ Authorised!</h2><p>{body}</p>
-<p style="margin-top:20px;font-size:13px;color:#999">You can close this tab.</p></div></body></html>"""
+<p style="margin-top:20px;font-size:13px;color:#999">This tab will close automatically.</p></div></body></html>"""
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Connection", "close")
@@ -62,12 +64,24 @@ h2{{color:#0a66c2}}p{{color:#555}}</style></head>
             pass  # silence access log
 
     server = HTTPServer(("localhost", _REDIRECT_PORT), Handler)
-    server.timeout = 120
+    server.timeout = 2  # short so the loop can check code_holder regularly
 
     webbrowser.open(auth_url)
 
-    # Handle exactly one request then shut down
-    server.handle_request()
+    # Keep handling requests until the auth code arrives or we time out.
+    # Browsers fire extra requests (favicon, prefetch) before the real callback —
+    # consuming only one request would silently swallow those and miss the code.
+    deadline = time.monotonic() + 120
+    while not code_holder and not server_error:
+        if time.monotonic() > deadline:
+            break
+        server.handle_request()
+
+    # Stay alive a few extra seconds so browser follow-up requests
+    # (favicon, etc.) don't hit ERR_CONNECTION_REFUSED.
+    drain_until = time.monotonic() + 5
+    while time.monotonic() < drain_until:
+        server.handle_request()
     server.server_close()
 
     if server_error:
@@ -95,7 +109,7 @@ h2{{color:#0a66c2}}p{{color:#555}}</style></head>
 class LinkedInClient:
     BASE = "https://api.linkedin.com/v2"
 
-    def __init__(self, access_token: str) -> None:
+    def __init__(self, access_token: str, org_id: str | None = None) -> None:
         self._http = httpx.Client(
             base_url=self.BASE,
             headers={
@@ -107,6 +121,7 @@ class LinkedInClient:
             timeout=30,
         )
         self._urn: str | None = None
+        self._org_urn: str | None = f"urn:li:organization:{org_id}" if org_id else None
 
     # --- profile ---
 
@@ -118,11 +133,15 @@ class LinkedInClient:
             self._urn = f"urn:li:person:{r.json()['sub']}"
         return self._urn
 
+    def author_urn(self) -> str:
+        """Return org URN when posting as a page, else personal URN."""
+        return self._org_urn if self._org_urn else self.person_urn()
+
     # --- image upload ---
 
     def upload_image(self, image_path: Path) -> str:
         """Upload an image file and return its LinkedIn asset URN."""
-        urn = self.person_urn()
+        urn = self.author_urn()
 
         # Step 1 — register upload
         reg = self._http.post(
@@ -197,7 +216,7 @@ class LinkedInClient:
 
     def _build_payload(self, text: str, visibility: str) -> dict:
         return {
-            "author": self.person_urn(),
+            "author": self.author_urn(),
             "lifecycleState": "PUBLISHED",
             "specificContent": {
                 "com.linkedin.ugc.ShareContent": {

@@ -77,8 +77,10 @@ def main():
         print("Dry run — not posted.")
         return
 
+    org_id = _load_env("LINKEDIN_ORG_ID")
+
     print("Posting to LinkedIn…")
-    li = LinkedInClient(linkedin_token)
+    li = LinkedInClient(linkedin_token, org_id=org_id)
     urn = li.post_with_image(text, image_path)
     engine.log_post(selected["id"], urn, text, str(image_path))
 
