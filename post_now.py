@@ -71,15 +71,16 @@ def main():
     print(f"Copy ({len(text)} chars):\n{text}\n")
 
     print("Generating image…")
+    img_prompt = f"Bitsol Marketing LinkedIn post: {selected['image_prompt']}"
+    image_path = None
     if openai_key:
-        img_client = OpenAIImageClient(openai_key)
-    else:
-        img_client = PollinationsImageClient()
+        try:
+            image_path = OpenAIImageClient(openai_key).generate(img_prompt, size_preset="post")
+        except Exception as e:
+            print(f"  OpenAI image failed ({e}) — falling back to Pollinations.ai…")
+    if image_path is None:
         print("  → using Pollinations.ai (free, no key needed)")
-    image_path = img_client.generate(
-        f"Bitsol Marketing LinkedIn post: {selected['image_prompt']}",
-        size_preset="post",
-    )
+        image_path = PollinationsImageClient().generate(img_prompt, size_preset="post")
     print(f"Image: {image_path.resolve()}")
 
     if args.dry_run:
