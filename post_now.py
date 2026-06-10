@@ -40,14 +40,12 @@ def main():
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
+    groq_key = _load_env("GROQ_API_KEY")
     gemini_key = _load_env("GEMINI_API_KEY")
     openai_key = _load_env("OPENAI_API_KEY")
     anthropic_key = _load_env("ANTHROPIC_API_KEY")
     linkedin_token = _load_env("LINKEDIN_ACCESS_TOKEN")
 
-    if not gemini_key and not openai_key and not anthropic_key:
-        print("ERROR: Set GEMINI_API_KEY (free) or OPENAI_API_KEY / ANTHROPIC_API_KEY")
-        sys.exit(1)
     if not linkedin_token and not args.dry_run:
         print("ERROR: LINKEDIN_ACCESS_TOKEN not set in ~/.hermes/.env")
         sys.exit(1)
@@ -56,6 +54,7 @@ def main():
         api_key=openai_key or "",
         anthropic_key=anthropic_key,
         gemini_key=gemini_key,
+        groq_key=groq_key,
     )
 
     # Select pillar

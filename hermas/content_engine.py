@@ -126,6 +126,10 @@ The first sentence must be impossible to scroll past.
 _OPENAI_CHAT = "https://api.openai.com/v1/chat/completions"
 _ANTHROPIC_MESSAGES = "https://api.anthropic.com/v1/messages"
 _GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+# Free OpenAI-compatible endpoints — no API key required
+_POLLINATIONS_CHAT = "https://text.pollinations.ai/openai"
+# Groq free tier — key from console.groq.com (no credit card)
+_GROQ_CHAT = "https://api.groq.com/openai/v1/chat/completions"
 _LOG_PATH = Path.home() / ".hermes" / "bitsol_posts.json"
 
 
@@ -135,13 +139,16 @@ class ContentEngine:
         api_key: str = "",
         anthropic_key: str | None = None,
         gemini_key: str | None = None,
+        groq_key: str | None = None,
     ) -> None:
+        self._openai_key = api_key
         self._http = httpx.Client(
             headers={"Authorization": f"Bearer {api_key}"},
             timeout=60,
         )
         self._anthropic_key = anthropic_key
         self._gemini_key = gemini_key
+        self._groq_key = groq_key
         self._log = self._load_log()
 
     def _load_log(self) -> list:
@@ -231,15 +238,60 @@ class ContentEngine:
         r.raise_for_status()
         return r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
 
+    def _generate_with_groq(self, user_msg: str) -> str:
+        r = httpx.post(
+            _GROQ_CHAT,
+            headers={"Authorization": f"Bearer {self._groq_key}"},
+            json={
+                "model": "llama-3.1-70b-versatile",
+                "messages": [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": user_msg},
+                ],
+                "max_tokens": 600,
+                "temperature": 0.88,
+            },
+            timeout=60,
+        )
+        r.raise_for_status()
+        return r.json()["choices"][0]["message"]["content"].strip()
+
+    def _generate_with_pollinations(self, user_msg: str) -> str:
+        """Completely free — no API key, OpenAI-compatible proxy."""
+        r = httpx.post(
+            _POLLINATIONS_CHAT,
+            json={
+                "model": "openai",
+                "messages": [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": user_msg},
+                ],
+                "max_tokens": 600,
+                "temperature": 0.88,
+                "private": True,
+            },
+            timeout=60,
+        )
+        r.raise_for_status()
+        return r.json()["choices"][0]["message"]["content"].strip()
+
     def generate_text(self, pillar: dict, topic: str | None = None) -> str:
         user_msg = self._build_user_msg(pillar, topic)
+        if self._groq_key:
+            print("Using Groq / Llama 3.1 70B (free)…")
+            return self._generate_with_groq(user_msg)
         if self._gemini_key:
             print("Using Gemini 2.0 Flash (free)…")
             return self._generate_with_gemini(user_msg)
-        try:
-            return self._generate_with_openai(user_msg)
-        except RuntimeError:
-            return self._generate_with_claude(user_msg)
+        if self._openai_key:
+            try:
+                return self._generate_with_openai(user_msg)
+            except RuntimeError:
+                if self._anthropic_key:
+                    return self._generate_with_claude(user_msg)
+                raise
+        print("Using Pollinations.ai text (free, no key needed)…")
+        return self._generate_with_pollinations(user_msg)
 
     def log_post(self, pillar_id: str, urn: str, text: str, image: str | None) -> None:
         self._log.append({
