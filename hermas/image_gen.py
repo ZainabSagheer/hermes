@@ -1,6 +1,7 @@
 """Image generation clients — Pollinations (free) and OpenAI (paid fallback)."""
 
 import base64
+import time
 import urllib.parse
 from pathlib import Path
 
@@ -34,14 +35,21 @@ class PollinationsImageClient:
             f"{self._BASE}/{urllib.parse.quote(prompt)}"
             f"?width={w}&height={h}&model=flux&nologo=true&enhance=true"
         )
-        r = httpx.get(url, timeout=120, follow_redirects=True)
-        if not r.is_success:
-            raise RuntimeError(f"Pollinations error {r.status_code}: {r.text[:200]}")
-        if output_path is None:
-            slug = prompt[:40].replace(" ", "_").replace("/", "-")
-            output_path = Path(f"{slug}_{size_preset}.jpg")
-        output_path.write_bytes(r.content)
-        return output_path
+        for attempt in range(5):
+            r = httpx.get(url, timeout=120, follow_redirects=True)
+            if r.status_code in (402, 429):
+                wait = 20 * (attempt + 1)
+                print(f"  Pollinations queue full — waiting {wait}s (attempt {attempt + 1}/5)…")
+                time.sleep(wait)
+                continue
+            if not r.is_success:
+                raise RuntimeError(f"Pollinations error {r.status_code}: {r.text[:200]}")
+            if output_path is None:
+                slug = prompt[:40].replace(" ", "_").replace("/", "-")
+                output_path = Path(f"{slug}_{size_preset}.jpg")
+            output_path.write_bytes(r.content)
+            return output_path
+        raise RuntimeError("Pollinations image: queue full after 5 retries")
 
 _MODELS = ("dall-e-3", "gpt-image-1")
 _OPENAI_IMAGES = "https://api.openai.com/v1/images/generations"
