@@ -243,7 +243,7 @@ class ContentEngine:
             _GROQ_CHAT,
             headers={"Authorization": f"Bearer {self._groq_key}"},
             json={
-                "model": "llama-3.1-70b-versatile",
+                "model": "llama-3.3-70b-versatile",
                 "messages": [
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": user_msg},
